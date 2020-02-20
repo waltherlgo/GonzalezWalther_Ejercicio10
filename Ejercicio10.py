@@ -22,80 +22,45 @@ ii = np.argsort(-valores)
 valores = valores[ii]
 vectores = vectores[:,ii]
 
-plt.figure(figsize=(15,5))
-plt.subplot(2,3,1)
-plt.title("Matriz de Covarianza")
-plt.imshow(cov)
-
-plt.subplot(2,3,2)
-plt.title("Varianza explicada")
-plt.plot(np.cumsum(valores)/np.sum(valores))
-plt.xlabel("Componentes")
-plt.ylabel("Fraccion")
-max_comps = (np.count_nonzero((np.cumsum(valores)/np.sum(valores))<0.6))
-print(max_comps+1) # Necesito este numero de componentes para tener al menos el 60 de la varianza.
-
-plt.subplot(2,3,4)
-plt.imshow(vectores[:,0].reshape(8,8))
-plt.title('Primer Eigenvector')
-plt.subplot(2,3,5)
-plt.title('Segundo Eigenvector')
-plt.imshow(vectores[:,1].reshape(8,8))
-plt.subplot(2,3,6)
-plt.title('Tercer Eigenvector')
-plt.imshow(vectores[:,2].reshape(8,8))
-plt.subplots_adjust(hspace=0.5)
-
+#Defino una probabilidad para encontrar la función de distribución en cada digito
 def prob(x_train,vector,m,sig):
     Ps=1
     for i in x_train:
         comp=np.dot(i,vector)
         Ps=Ps*1/(sig*np.sqrt(2*np.pi))*np.exp(-1/2*((comp-m)/sig)**2) 
     return Ps
-#Segun eso, tomo la media sobre los valores train, y luego evaluo las probabilidades en cada sigma
-ones=y_train==1
-x_t=x_train[ones]
-sigl=np.zeros(4)
-m=np.zeros(4)
-for i in range(4):
-    m[i]=np.mean(x_t@vectores[:,i])
-    Pm=-np.inf
-    for sig in np.linspace(0.001,20,1000):
-        Pp=prob(x_t,vectores[:,i],m[i],sig)
-        if Pp>Pm:
-            Pm=Pp
-            sigl[i]=sig
-            
-
-ones=y_train==2
-x_t=x_train[ones]
-sigl2=np.zeros(4)
-m2=np.zeros(4)
-for i in range(4):
-    m2[i]=np.mean(x_t@vectores[:,i])
-    Pm=-np.inf
-    for sig in np.linspace(0.001,20,1000):
-        Pp=prob(x_t,vectores[:,i],m2[i],sig)
-        if Pp>Pm:
-            Pm=Pp
-            sigl2[i]=sig
-
-muestra=114
-y_train[muestra]
-
-xo=x_train[y_train==1]
-LP=np.array([])
-LP2=np.array([])
-for xm in xo:
+#Ahora encuentro los parametros m y sig de cada digito para las primeras 4 componentes principales
+sigl=np.zeros((10,4))
+m=np.zeros((10,4))
+for i in range(10):
+    x_t=x_train[y_train==i]
+    for i2 in range(4):
+        m[i,i2]=np.mean(x_t@vectores[:,i2])
+        Pm=-np.inf
+        for sig in np.linspace(0.001,20,1000):
+            Pp=prob(x_t,vectores[:,i],m[i,i2],sig)
+            if Pp>Pm:
+                Pm=Pp
+                sigl[i,i2]=sig
+#Ahora defino una función  que me diga que tan probable es que un dato se encuentre en un digito
+def probdig(x,dig):
     Probl=np.zeros(4)
-    Probl2=np.zeros(4)
-    #muestra=100
-    #xm=x_test[muestra]
     for i in range(4):
-        comp=np.dot(xm,vectores[:,i])
-        Probl[i]=1/(sigl[i]*np.sqrt(2*np.pi))*np.exp(-1/2*((comp-m[i])/sigl[i])**2)
-    LP=np.append(LP,np.prod(Probl))
-    for i in range(4):
-        comp=np.dot(xm,vectores[:,i])
-        Probl2[i]=1/(sigl2[i]*np.sqrt(2*np.pi))*np.exp(-1/2*((comp-m2[i])/sigl2[i])**2)
-    LP2=np.append(LP2,np.prod(Probl2))
+        comp=np.dot(x,vectores[:,i])
+        Probl[i]=1/(sigl[dig,i]*np.sqrt(2*np.pi))*np.exp(-1/2*((comp-m[dig,i])/sigl[dig,i])**2)
+    P=np.prod(Probl)
+    return P
+#Y definimos un predictor, que me dice cual es el digito mas probable
+def predict(x):
+    Probs=np.zeros(10)
+    for i in range(10):
+        Probs[i]=probdig(x,i)
+    return np.argmax(Probs)
+#Podemos evaluar la eficiencia tomando muestras y haciendo las predicciones
+Predict=np.zeros(500)
+etiqueta=np.zeros(500)
+for muestra in range(500):
+    xm=x_test[muestra]
+    Predict[muestra]=predict(xm)
+    etiqueta[muestra]=y_test[muestra]
+sum(etiqueta==Predict)/500
